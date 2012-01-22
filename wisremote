@@ -53,6 +53,7 @@ class WisRemote:
 		# DO NOT CHANGE THE FOLLOWING VALUES:
 					'ProgramFolder':'/opt/wisremote/',	# Full path to where WisRemote is installed (ending with a slash)		
 					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3).							
+					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3, Full 4).							
 					'WindowHeight':240,       		# Height of the VLC window.
 					'WindowWidth':320,	   		# Width of the VLC window.
 					'WindowXOffset':0,			# Horizontal offset of the VLC window from the right.
@@ -64,6 +65,7 @@ class WisRemote:
 					'VBRate':1500,				# Video bitrate of the actual stream.
 					'ACodec':'pcm',				# Audio codec of the actual stream.
 					'ABRate':128,				# Audio bitrate of the actual stream.
+                                        'TSContainer':False,                    # Transport Stream Format
 					'NoVideo':0,				# No video for this session.
 					'NoAudio':0,				# No audio for this session.
 					'RTPPort':8554,				# RTP Port to use on the stream.
@@ -114,6 +116,8 @@ class WisRemote:
 					'VBRate':96,				# Video bitrate of the stream.
 					'ACodec':'mpegaudio',			# Audio codec of the stream
 					'ABRate':64 }				# Audio bitrate of the stream.
+					'ABRate':64, 				# Audio bitrate of the stream.
+                                        'TSContainer':False}                    # Transport Stream Format
 		
 		self.mediumquality = { 	'Height':240,				# Height of the stream.
 					'Width':320,				# Weight of the stream.
@@ -121,6 +125,8 @@ class WisRemote:
 					'VBRate':192,				# Video bitrate of the stream.
 					'ACodec':'mpegaudio',			# Audio codec of the stream
 					'ABRate':128 }				# Audio bitrate of the stream.
+					'ABRate':128, 				# Audio bitrate of the stream.
+                                        'TSContainer':False}                    # Transport Stream Format
 								
 		self.highquality = { 	'Height':480,				# Height of the stream.
 					'Width':640,				# Weight of the stream.
@@ -129,6 +135,16 @@ class WisRemote:
 					'ACodec':'pcm',				# Audio codec of the stream
 					'ABRate':128 }				# Audio bitrate of the stream.								
 
+					'ABRate':128, 				# Audio bitrate of the stream.	
+                                        'TSContainer':False}                    # Transport Stream Format
+		
+		self.dvdquality = {     'Height':480,                           # Height of the stream.
+                                        'Width':720,                            # Weight of the stream.
+                                        'VCodec':'mpeg2',                       # Video codec of the stream.
+                                        'VBRate':1500,                          # Video bitrate of the stream.
+                                        'ACodec':'mpegaudio',                   # Audio codec of the stream
+                                        'ABRate':192,                           # Audio bitrate of the stream.
+                                        'TSContainer':True}                     # Transport Stream Format
 
 		# ********************************** OTHER VARIABLES **********************************				
 			
@@ -343,6 +359,7 @@ class WisRemote:
 				
 				elif o in ("-q", "--quality"):
 					self.validateArg("PreferedQuality",v,1,3)
+					self.validateArg("PreferedQuality",v,1,4)
 				
 				elif o in ("-x", "--no-audio"):
 					self.options["NoAudio"]=1
@@ -396,6 +413,7 @@ class WisRemote:
 			self.options["VBRate"]=self.lowquality["VBRate"]
 			self.options["ACodec"]=self.lowquality["ACodec"]
 			self.options["ABRate"]=self.lowquality["ABRate"]
+                       self.options["TSContainer"]=self.dvdquality["TSContainer"]
 		
 		elif(self.options["PreferedQuality"]==2):
 			self.options["Height"]=self.mediumquality["Height"]
@@ -404,6 +422,7 @@ class WisRemote:
 			self.options["VBRate"]=self.mediumquality["VBRate"]
 			self.options["ACodec"]=self.mediumquality["ACodec"]
 			self.options["ABRate"]=self.mediumquality["ABRate"]
+                       self.options["TSContainer"]=self.dvdquality["TSContainer"]
 			
 		elif(self.options["PreferedQuality"]==3):
 			self.options["Height"]=self.highquality["Height"]
@@ -412,7 +431,16 @@ class WisRemote:
 			self.options["VBRate"]=self.highquality["VBRate"]
 			self.options["ACodec"]=self.highquality["ACodec"]
 			self.options["ABRate"]=self.highquality["ABRate"]
+                       self.options["TSContainer"]=self.dvdquality["TSContainer"]
 
+                elif(self.options["PreferedQuality"]==4):
+                        self.options["Height"]=self.dvdquality["Height"]
+                        self.options["Width"]=self.dvdquality["Width"]
+                        self.options["VCodec"]=self.dvdquality["VCodec"]
+                        self.options["VBRate"]=self.dvdquality["VBRate"]
+                        self.options["ACodec"]=self.dvdquality["ACodec"]
+                        self.options["ABRate"]=self.dvdquality["ABRate"]
+                        self.options["TSContainer"]=self.dvdquality["TSContainer"]
 
 		self.command= "wis-streamer -i "
 
@@ -452,6 +480,16 @@ class WisRemote:
 		else:
 			self.command+="-na "
 	
+                if(self.options["TSContainer"]==True):
+			self.command+="-mpegtransport "+str(self.options["ABRate"])+" "
+				
+                sdmessage= "Streaming "
+                if(self.options["Preset"]==-1):
+                        sdmessage+="channel "+self.options["TVChan"]+" "
+                else:
+                        sdmessage+=self.channels[self.options["Preset"]][1]
+		self.command+=" -D \""+str(sdmessage)+"\" "
+
 	# This method loads the ssh values needed to establish an SSH connection if SSH is enabled. 
 	
 	def loadSSHValues(self):
@@ -827,6 +865,9 @@ class WisRemote:
 								
 			elif(high_ritem.get_active()):
 				self.options["PreferedQuality"]=3
+
+                        elif(dvd_ritem.get_active()):
+                                self.options["PreferedQuality"]=4
 				
 			self.prepareCmd()
 			self.runStreamServer()
@@ -904,6 +945,7 @@ class WisRemote:
 		med_ritem = gtk.RadioMenuItem(ritem_group, "Medium quality")
 		high_ritem = gtk.RadioMenuItem(ritem_group, "High quality")
 		
+                dvd_ritem = gtk.RadioMenuItem(ritem_group, "Dvd quality")
 		
 		if(self.options["PreferedQuality"]==1):
 			low_ritem.set_active(True)
@@ -913,8 +955,13 @@ class WisRemote:
 
 		elif(self.options["PreferedQuality"]==3):		
 			high_ritem.set_active(True)
+
+                elif(self.options["PreferedQuality"]==4):
+                        dvd_ritem.set_active(True)
+
 		else:
 			high_ritem.set_active(True)
+			dvd_ritem.set_active(True)
 
 		sep2_item = gtk.SeparatorMenuItem()
 		tvg_item = gtk.ImageMenuItem("TV Guide")
@@ -976,6 +1023,7 @@ class WisRemote:
 		menu.append(vol_item)	
 		menu.append(stop_item)	
 		menu.append(sep1_item)
+                menu.append(dvd_ritem)
 		menu.append(high_ritem)
 		menu.append(med_ritem)
 		menu.append(low_ritem)
