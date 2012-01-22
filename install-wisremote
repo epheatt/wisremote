@@ -1,0 +1,14 @@
+#!/bin/bash
+
+mkdir /opt/wisremote
+cp -Rf * /opt/wisremote
+ln -s /opt/wisremote/wisremote /usr/local/bin/
+ln -s /opt/wisremote/wisremote.desktop /usr/share/applications/
+
+echo
+echo 'WisRemote has been installed on your system.'
+echo
+echo 'Type wisremote from command line to see the'
+echo 'available options or use the launcher from'
+echo "your gnome's menu to launch it on tray mode"
+echo

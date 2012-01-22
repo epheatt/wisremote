@@ -1,0 +1,1003 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+################################################################################
+#
+#  WisRemote v1.0 
+#
+#  Copyright (C) 2007  Unai Goikoetxeta <unai.goikoetxeta@gmail.com>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
+import os,getopt,sys,time,commands
+
+# If any of the imports related to SSH fail, essh=False:
+try: import paramiko; import interactive; essh=True
+except ImportError: essh=False
+
+# If any of the imports related to GTK fail, egtk=False:
+try: import pygtk; pygtk.require('2.0'); import subprocess; import signal; import gtk, gobject; import telnetlib; egtk=True
+except ImportError: egtk=False
+
+class WisRemote:
+
+	def __init__(self):
+	
+		# ********************************** MAIN CONFIGURATION PARAMETERS OF THE SCRIPT **********************************
+		
+		# CHANGE THE FOLLOWING PARAMETERS TO FIT YOUR NEEDS:
+		
+		self.options = {	'TvCodSystem':'pal',			# Your TV codification system. It mus tbe one from the list showed by 'wis-streamer -t help'
+					'BandName':'europe',			# Your tuner's band-name. It must be one from the list showed by 'wis-streamer -c help'.
+					'NetworkInterface':'eth0',		# Type your network interface.
+					'EnableTray':False,			# Enable the tray by default.
+					'SSHEnable':False,			# Enable ssh to control a remote machine's wis-streamer.
+					'SSHEnablePKey':False,			# Use key to login on the ssh server.
+					'SSHUser':'user',			# SSH username.
+					'SSHPass':'pass',			# SSH user pasword (not needed if using key login).
+					'SSHServer':'ssh_server_ip',		# IP of the SSH server.
+					'TVGuideURL':'http://',			# URL to the TV program guide website.
+					'WebBrowser':'sensible-browser',	# Default web-browser.
+
+		# DO NOT CHANGE THE FOLLOWING VALUES:
+					'ProgramFolder':'/opt/wisremote/',	# Full path to where WisRemote is installed (ending with a slash)		
+					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3).							
+					'WindowHeight':240,       		# Height of the VLC window.
+					'WindowWidth':320,	   		# Width of the VLC window.
+					'WindowXOffset':0,			# Horizontal offset of the VLC window from the right.
+					'WindowYOffset':25,			# Vertical offset of the VLC window from the bottom.
+					'TVChan':'25',				# PAL channel of the actual stream.
+					'Height':480,				# Height of the actual stream.
+					'Width':640,				# Width of the actual stream.
+					'VCodec':'mpeg4',			# Video codec of the actual stream.
+					'VBRate':1500,				# Video bitrate of the actual stream.
+					'ACodec':'pcm',				# Audio codec of the actual stream.
+					'ABRate':128,				# Audio bitrate of the actual stream.
+					'NoVideo':0,				# No video for this session.
+					'NoAudio':0,				# No audio for this session.
+					'RTPPort':8554,				# RTP Port to use on the stream.
+					'Preset':-1,				# TV Channel Preset of the actual stream.
+					'Debug':False,				# Enable the debug mode to see the wis-streamer arguments.
+					'KillStreamer':False,			# Variable used to kill the streamer by default.
+					'SSHPort':22,				# Remote SSH server's port.
+					'SSHHostKey':None,			# Variable used to store the ssh host key.
+					'SSHPKey':None } 			# Variable used to store the ssh key.
+
+
+		# ********************************** YOUR TV CHANNEL LIST **********************************
+
+		# You must write down your channel list here. Use the following format:
+		#
+		# 1:['CHANNEL', 'NAME', 'ICONPATH'],
+		# 2:['CHANNEL', 'NAME', 'ICONPATH'],
+		# 3:['CHANNEL', 'NAME', 'ICONPATH'],		
+		# ...
+		#
+		# For instance:
+		# 1:['25','TVE 1', 'None'],
+		#
+		# If an icon (with a size of 16x16 pixels) is available for the channel, use:
+		# 1:['25','TVE 1', self.options["ProgramFolder"]+'icons/la1.png'],
+		#
+		# The numeration of each channel line must be in order and the last two channels
+		# should be the 'Composite' and 'Supervideo', just as they are listed below.
+		# You will just have to change the channel line number of these image sources.
+		#
+		# You might use the chanscanner script included on the package to 
+		# check your channel's values as it is explained on the INSTALL file.
+
+				
+		self.channels = {	1:['25','Imaginary Channel Name','None'], 	# Add your channels in lines similar to this one.
+					2:['--','Composite','icons/composite.png'],	# Composite, do not change the name.
+					3:['--','SuperVideo','icons/svideo.png']} 	# SuperVideo, do not change the name.
+		
+
+		# ********************************** STREAM QUALITY PRESETS **********************************		
+
+		# Here is where the three basic quality presets are set. Do not change them unless you know what
+		# you're doing.
+		
+		self.lowquality = { 	'Height':120,				# Height of the stream.
+					'Width':160,				# Weight of the stream.
+					'VCodec':'mpeg4',			# Video codec of the stream.
+					'VBRate':96,				# Video bitrate of the stream.
+					'ACodec':'mpegaudio',			# Audio codec of the stream
+					'ABRate':64 }				# Audio bitrate of the stream.
+		
+		self.mediumquality = { 	'Height':240,				# Height of the stream.
+					'Width':320,				# Weight of the stream.
+					'VCodec':'mpeg4',			# Video codec of the stream.
+					'VBRate':192,				# Video bitrate of the stream.
+					'ACodec':'mpegaudio',			# Audio codec of the stream
+					'ABRate':128 }				# Audio bitrate of the stream.
+								
+		self.highquality = { 	'Height':480,				# Height of the stream.
+					'Width':640,				# Weight of the stream.
+					'VCodec':'mpeg4',			# Video codec of the stream.
+					'VBRate':1500,				# Video bitrate of the stream.
+					'ACodec':'pcm',				# Audio codec of the stream
+					'ABRate':128 }				# Audio bitrate of the stream.								
+
+
+		# ********************************** OTHER VARIABLES **********************************				
+			
+		# DO NOT CHANGE THIS VARIABLES.		
+
+		self.command = "wis-streamer"				# Variable that is going to contain the full wis-streamer command to execute.
+		self.rtsp = None					# Variable that is going to contain the rtsp source uri.
+		self.vlcprocess = None					# Variable that is going to point to the child VLC process.
+
+
+	# ********************************** BEGINNING OF THE PROGRAM **********************************
+	
+	
+	# This is the main method of the application. It makes the application run deppending on 
+	# the arguments introduced by the user, and in the case the tray has been enabled, it
+	# checks if the necessary programs and python libraries are installed.
+				   	
+	def main(self):	
+	
+		self.readArgs()
+		self.loadSSHValues()
+		
+		if (self.options["KillStreamer"]):
+			self.killStreamer()
+
+			message= "*** Streaming server at "
+
+			if(self.options["SSHEnable"]):
+				message+=self.options["SSHServer"]+" "
+			else:
+				message+="localhost "
+			message+=" killed."
+			print
+			print message
+			print			
+		
+		elif(self.options["EnableTray"]==True):
+			if(egtk==True):
+				
+				cmd = os.popen('which vlc')
+				x = cmd.readlines()
+				evlc=False
+				for y in x:
+					   evlc=True
+					   break
+			   	
+			   	if (evlc==True):	   	
+					ewis=False
+					
+					if(self.options["SSHEnable"]==False):   	
+								
+					   	cmd = os.popen('which wis-streamer')
+						x = cmd.readlines()
+
+						for y in x:
+							ewis=True
+							break
+					else:
+						ewis=True
+							
+					if(ewis==True):
+						self.enableTray()					
+					else:
+						print
+						print "***** WIS-STREAMER ERROR *****"
+						print
+						print "Sorry, wis-streamer is not installed on the"
+
+						location=""
+						if(essh==1):
+							location="remote"
+						else:
+							location="local"
+							
+						print location+" system."
+						print
+						print "You need to install wis-streamer in order to"
+						print "watch your TV stream."
+						print
+
+				else:
+					print
+					print "***** VLC ERROR *****"
+					print
+					print "Sorry, VLC is not installed on the system."
+					print
+					print "You need to install VLC in order to watch"
+					print "your TV stream."
+					print
+			else:
+				print
+				print "***** pyGTK ERROR *****"
+				print
+				print "Sorry, pyGTK is not installed on the system."
+				print
+				print "Try running wisremote from command line or"
+				print "install pyGTK to use the tray option."
+				print
+		else:
+			self.prepareCmd()
+			self.runStreamServer()
+
+
+	# This is the method that reads the arguments introduced by the user and validates them, showing error messages
+	# if needed.
+
+	def readArgs(self):
+		try:
+			opts, args = getopt.getopt(sys.argv[1:], "hmc:v:a:q:xwp:r:tdk", ["help", "more-help", "channel=", "video-codec=", "audio-codec=", "quality=", "no-audio", "no-video", "port=", "resolution=", "tray", "debug", "kill"])
+	
+		except getopt.error, msg:
+			self.usage()
+			sys.exit(2)
+		
+		if (len(args)>1):
+			self.usage()
+			sys.exit(2)
+
+		else:
+			if(len(args)==0 and len(opts)>0):
+				counter=0;
+				for o, v in opts:
+					if o in ("-h", "--help"):
+						self.usage()
+						sys.exit(2)					
+					elif o in ("-m", "--more-help"):
+						self.help()
+						sys.exit(2)
+					elif o in ("-c", "--channel"):
+						exit=0
+						counter=1
+					elif o in ("-k", "--kill"):
+						counter=1
+					elif o in ("-t", "--tray"):
+						counter=1
+
+				if (counter==0):
+					self.usage()
+					sys.exit(2)
+
+			elif (len(args)==1 and len(opts)>0):
+				counter=0
+				for o, v in opts:
+					if o in ("-h", "--help"):
+						self.usage()
+						sys.exit(2)					
+					elif o in ("-m", "--more-help"):
+						self.help()
+						sys.exit(2)
+					elif o in ("-c", "--channel"):
+						counter=1
+					elif o in ("-k", "--kill"):
+						counter=1
+					elif o in ("-t", "--tray"):
+						counter=1
+
+				if counter==0:
+					self.validateArg("Preset",args[0])
+					if (self.options["Preset"]> len(self.channels) or self.options["Preset"]<1):
+						self.usage()
+						sys.exit(2)
+
+			elif (len(args)==1 and len(opts)==0):
+				self.validateArg("Preset",args[0])
+				if (self.options["Preset"]>len(self.channels) or self.options["Preset"]<1):
+					self.usage()
+					sys.exit(2)
+
+			elif (len(args)==0 and len(opts)==0):
+				self.usage()
+				sys.exit(2)
+			
+			for o, v in opts:
+	
+				if o in ("-h", "--help"):
+					self.usage()
+					sys.exit(2)
+				
+				elif o in ("-m", "--more-help"):
+					self.help()
+					sys.exit(2)
+					
+				elif o in ("-c", "--channel"):
+					self.options["TVChan"]=v
+				
+				elif o in ("-k", "--kill"):
+					self.options["KillStreamer"]=True
+				
+				elif o in ("-v", "--video-codec"):
+					tam=len(v)
+					separator=v.find(':')
+
+					if(separator!=-1):
+						codec=v[0:separator]
+						brate=v[separator+1:tam]
+						self.options["VCodec"]=codec
+						self.validateArg("VBRate",brate,0,5000)
+					else:
+						self.options["VCodec"]=v
+
+				elif o in ("-a", "--audio-codec"):
+					tam=len(v)
+					separator=v.find(':')
+
+					if(separator!=-1):
+						codec=v[0:separator]
+						brate=v[separator+1:tam]
+						self.options["ACodec"]=codec
+						self.validateArg("ABRate",brate,0,5000)
+					else:
+						self.options["ACodec"]=v
+				
+				elif o in ("-q", "--quality"):
+					self.validateArg("PreferedQuality",v,1,3)
+				
+				elif o in ("-x", "--no-audio"):
+					self.options["NoAudio"]=1
+
+				elif o in ("-w", "--no-video"):
+					self.options["NoVideo"]=1
+
+				elif o in ("-p", "--port"):
+					self.validateArg("RTPPort",v)
+
+				elif o in ("-r", "--resolution"):
+					tam=len(v)
+					separator=v.find('x')
+
+					if(separator!=-1):
+						w=v[0:separator]
+						h=v[separator+1:tam]
+						self.validateArg("Width",w,0,2000)
+						self.validateArg("Height",h,0,2000)
+						
+				elif o in ("-t", "--tray"):
+					self.options["EnableTray"]=True
+					
+				elif o in ("-d", "--debug"):
+					self.options["Debug"]=True
+						
+
+	# This method simply checks if arg is an integer and, if minv and maxv values are included on the method call,
+	# it also checks if the arg value is between them.
+	
+	def validateArg(self,optfield,arg,minv=0,maxv=0):
+		try:
+			self.options[optfield]=int(arg)
+			
+			if ((minv!=maxv) and (self.options[optfield] < minv or self.options[optfield] > maxv)):
+				self.usage()
+				sys.exit(2)
+		except:
+			self.usage()
+			sys.exit(2)
+
+	
+	# This method fills the self.command variable with the final command of wis-streamer
+	# to be used on the local or remote machine.
+	
+	def prepareCmd(self):
+		if(self.options["PreferedQuality"]==1):			
+			self.options["Height"]=self.lowquality["Height"]
+			self.options["Width"]=self.lowquality["Width"]
+			self.options["VCodec"]=self.lowquality["VCodec"]
+			self.options["VBRate"]=self.lowquality["VBRate"]
+			self.options["ACodec"]=self.lowquality["ACodec"]
+			self.options["ABRate"]=self.lowquality["ABRate"]
+		
+		elif(self.options["PreferedQuality"]==2):
+			self.options["Height"]=self.mediumquality["Height"]
+			self.options["Width"]=self.mediumquality["Width"]
+			self.options["VCodec"]=self.mediumquality["VCodec"]
+			self.options["VBRate"]=self.mediumquality["VBRate"]
+			self.options["ACodec"]=self.mediumquality["ACodec"]
+			self.options["ABRate"]=self.mediumquality["ABRate"]
+			
+		elif(self.options["PreferedQuality"]==3):
+			self.options["Height"]=self.highquality["Height"]
+			self.options["Width"]=self.highquality["Width"]
+			self.options["VCodec"]=self.highquality["VCodec"]
+			self.options["VBRate"]=self.highquality["VBRate"]
+			self.options["ACodec"]=self.highquality["ACodec"]
+			self.options["ABRate"]=self.highquality["ABRate"]
+
+
+		self.command= "wis-streamer -i "
+
+		if((self.channels[self.options["Preset"]][1]!="Composite") and (self.channels[self.options["Preset"]][1]!="SuperVideo") ):
+			self.command+="2 "
+			
+			if(self.options["NoVideo"]==0):	
+				self.command+="-c "+self.options["BandName"]+":"
+
+				if(self.options["Preset"]==-1):
+					self.command+=self.options["TVChan"]+" "
+				else:
+					self.command+=self.channels[self.options["Preset"]][0]+" "
+		
+
+		elif (self.channels[self.options["Preset"]][1]=="Composite"):
+			self.command+="0 "
+
+		elif (self.channels[self.options["Preset"]][1]=="SuperVideo"):
+			self.command+="1 "
+			
+		self.command+="-t "+self.options["TvCodSystem"]+" "
+		self.command+="-p "+str(self.options["RTPPort"])+" "
+		
+
+		if(self.options["NoVideo"]==0):	
+			self.command+="-w "+str(self.options["Width"])+" -h "+str(self.options["Height"]) +" "
+			self.command+="-"+self.options["VCodec"]+" "
+			self.command+="-r "+str(self.options["VBRate"])+"000 "
+		else:
+			self.command+="-nv "		
+
+		if(self.options["NoAudio"]==0):
+			self.command+="-"+self.options["ACodec"]+" "
+			if(self.options["ACodec"]=="aac" or self.options["ACodec"]=="mpegaudio"):
+				self.command+=str(self.options["ABRate"])+" "
+		else:
+			self.command+="-na "
+	
+	# This method loads the ssh values needed to establish an SSH connection if SSH is enabled. 
+	
+	def loadSSHValues(self):
+		
+		if(self.options["SSHEnable"] and essh):
+			hostkeytype = None
+
+			try:
+				host_keys = paramiko.util.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
+			except IOError:
+				print
+				print "***** SSH ERROR *****"
+				print
+				print "Sorry, the following problem has ocurred"
+				print "while trying to connect to the remote"
+				print "machine using ssh:"
+				print
+		  	  	print "Unable to open the host keys file at"
+		  	  	print "~/.ssh/known_hosts."
+				print
+				sys.exit(2)
+			
+
+			if host_keys.has_key(self.options["SSHServer"]):
+				hostkeytype = host_keys[self.options["SSHServer"]].keys()[0]
+				self.options["SSHHostKey"] = host_keys[self.options["SSHServer"]][hostkeytype]
+
+			if (self.options["SSHEnablePKey"]):
+				agent = paramiko.Agent()
+				agent_keys = agent.get_keys()
+
+				if len(agent_keys) != 0:
+
+					for key in agent_keys:
+						try:
+							self.options["SSHPKey"]=key
+						except paramiko.SSHException:
+							print
+							print "***** SSH ERROR *****"
+							print
+							print "Sorry, the following problem has ocurred"
+							print "while trying to connect to the remote"
+							print "machine using ssh:"
+							print
+					  	  	print "Unable to look for private keys."
+							print
+							print "Check your ssh settings on wisremote and"
+							print "try again."					
+							sys.exit(2)
+
+
+	# This method runs the command indicated by cmd remotely using SSH.
+	
+	def runSSHCmd(self,cmd):
+		try:
+			t = paramiko.Transport((self.options["SSHServer"], self.options["SSHPort"]))
+			if (self.options["SSHEnablePKey"]):
+				t.connect(username=self.options["SSHUser"], pkey=self.options["SSHPKey"], hostkey=self.options["SSHHostKey"])
+			else:
+				t.connect(username=self.options["SSHUser"], password=self.options["SSHPass"], hostkey=self.options["SSHHostKey"])
+			
+			chan = t.open_session()			
+			chan.exec_command(cmd)
+			chan.close()			
+			t.close()
+
+		except Exception, e:
+			print
+			print "***** SSH ERROR *****"
+			print
+			print "Sorry, the following problem has ocurred"
+			print "while trying to connect to the remote"
+			print "machine using ssh:"
+			print
+	  	  	print 'Caught exception: SSH %s' % (e)
+			print
+			print "Check your ssh settings on wisremote and"
+			print "try again."
+			print
+			sys.exit(2)
+			
+
+	# This method starts the streaming remotely or locally, according to what the configuration
+	# options are in the moment the call is made.
+	
+	def runStreamServer(self):
+		message= "Streaming "	
+		
+		if(self.options["Preset"]==-1):
+			message+="channel "+self.options["TVChan"]+" "
+		else:
+			message+=self.channels[self.options["Preset"]][1]+" "
+					
+		message+="at "
+
+		if(self.options["SSHEnable"]):
+			if(essh==True):
+				message+=self.options["SSHServer"]+"."
+				self.killStreamer()
+				self.runSSHCmd(self.command+'> /dev/null 2>&1 &')
+			else:
+				print
+				print "***** SSH ERROR *****"
+				print
+				print "Sorry, the neccesary library for controling"
+				print "wis-streamer remotely via SSH is not"
+				print "installed."
+				print
+				print "Try running wisremote without the ssh flag or"
+				print "install paramiko to use the ssh option."
+				print
+				sys.exit(2)
+		else:
+			message+="localhost."
+			self.killStreamer()
+			os.system(self.command+'> /dev/null 2>&1 &')
+		
+		connectmessage="\"vlc rtsp://"
+		if(self.options["SSHEnable"]):
+			connectmessage+=self.options["SSHServer"]
+		else:			
+			connectmessage+=self.getIp()
+		
+		connectmessage+=":"+str(self.options["RTPPort"])+"\""	
+		print
+		print "******  "+message+"  ******"
+		print
+		if self.options["Debug"]:
+			print "[DEBUG] "+self.command
+			print
+		print "To watch the stream run:"
+		print
+		print "    "+connectmessage
+		print
+	
+	
+	# This method kills the wis-streamer instance locally or remotely depending
+	# on the SSHEnable variable.
+	
+	def killStreamer(self):
+		if(self.options["SSHEnable"]):
+			if(essh):
+				self.runSSHCmd("killall wis-streamer")
+			else:
+				print
+				print "***** SSH ERROR *****"
+				print
+				print "Sorry, the neccesary library for controling"
+				print "wis-streamer remotely via SSH is not"
+				print "installed."
+				print
+				print "Try running wisremote without the ssh flag or"
+				print "install paramiko to use the ssh option."
+				print
+				sys.exit(2)
+		else:
+			cmd = os.popen('pidof wis-streamer')
+			x = cmd.readlines()
+			for y in x:
+			   if int(y) >= 0:
+			   	os.system("kill "+str(y))
+			   	time.sleep(.5)
+	
+	
+	# This method returns the actual IP of the network interface configured 
+	# as an option.
+	
+	def getIp(self):
+		cmd = '%s %s' % ('/sbin/ifconfig', self.options["NetworkInterface"])
+		output = commands.getoutput(cmd)
+
+		inet = output.find('inet addr:')
+
+		if inet >= 0:
+		        start = inet + len('inet addr:')
+		        end = output.find(' ', start)
+		        addr = output[start:end]
+		else:
+		        addr = ''
+
+		return addr
+	
+	
+	# This method prints on the screen the channel list explaining how to use the program from command line.
+
+	def usage(self):
+		print
+		print "This is a python script to control your Plextor ConvertX Video"
+		print "capturer using the wis-streamer application."
+		print
+		print "USAGE: wisremote [OPTIONS] [CHANNELID]"
+		print
+		print "CHANNELID:"
+		print
+		
+		for i,v in self.channels.iteritems():
+			print "    "+str(i)+": "+v[1]
+			
+		print
+		print "For more help type: wisremote -m"
+		print
+
+	# This method prints a full explanation about the available arguments to be handled by the program.
+				
+	def help(self):
+		print
+		print "This is a python script to control your Plextor ConvertX Video"
+		print "capturer using the wis-streamer application."
+		print
+		print "USAGE: wisremote [OPTIONS] [CHANNELID]"
+		print
+		print "CHANNELID:"
+		print
+		print "Type \"wisremote -h\" to list the available channel list."
+		print 
+		print "OPTIONS:"
+		print
+		print "-h, --help"
+		print "		Shows the channel list."
+		print
+		print "-m, --more-help"
+		print "		Shows this dialog."
+		print 
+		print "-c CHANNEL, --channel=CHANNEL"
+		sentence="		Sets the "+self.options["TvCodSystem"].upper()+" TV channel according to variable CHANNEL."
+		print sentence
+		print "		Using this argument disables the use of CHANNELID."
+		print
+		print "-v VCODEC[:BRATE], --video-codec=VCODEC[:BRATE]"
+		print "		Sets the video codec and optinally the bitrate (in kbps)."
+		print "		Possible codecs are: mjpeg, mpeg1, mpeg2, mpeg4."
+		print
+		print "-a ACODEC[:BRATE], --audio-codec=ACODEC[:BRATE]"
+		print "		Sets the audio codec and optinally the bitrate (in kbps)."
+		print "		Possible codecs are: pcm, ulaw, aac, mpegaudio."
+		print
+		print "-w, --no-video"
+		print "		Disables video stream."
+		print
+		print "-x, --no-audio"
+		print "		Disables audio stream."
+		print
+		print "-q QUALITY, --quality=QUALITY"
+		print "		Sets the streaming quality to 1 (LOW), 2 (MEDIUM) or"
+		print "		3 (HIGH)."
+		print
+		print "-p PORT, --port=PORT"
+		print "		Sets the RTP port according to variable PORT"
+		print
+		print "-r WIDTHxHEIGHT, --resolution=WIDTHxHEIGHT"
+		print "		Sets the stream resolution according to the WIDTH and"
+		print "		HEIGHT variables."
+		print
+		print "-t, --tray"
+		print "		Enables the gtk tray mode"
+		print
+		print "-d, --debug"
+		print "		Shows the exact wis-streamer commmand that is beeing"
+		print "		called."
+		print
+		print "-k, --kill"
+		print "		Kills the wis-streamer process"
+		print
+		print "Remember to take a look at the script's configuration variables"
+		print "in order to have the best performance for your needs."
+		print
+
+	# This method configures and displays the tray icon on the gnome-panel from
+	# which we can configure the stream.
+	
+	def enableTray(self):
+
+		# Method used to manage the button pressed event on the tray icon.
+		
+		def tray_menu(widget, button, time, data = None):
+			if button == 3:
+				if data:
+					data.show_all()
+					data.popup(None, None, None, 3, time)
+			pass
+
+		# Method used to open the TV guide URL on the web browser.
+					
+		def openTVGuide(widget):
+			subprocess.Popen([self.options["WebBrowser"],self.options["TVGuideURL"]])
+		     
+
+		# Method used to view the tv stream on a dummy VLC window. It automatically
+		# creates a new VLC instance if none has been configured before, and if an
+		# instance is running, it uses VLC's telnet interface to open the stream.
+		
+		def openVLC(widget):
+			
+			if(self.vlcprocess!=None):
+				try:
+					sesion = telnetlib.Telnet("127.0.0.1",9999)
+					sesion.write("add "+self.rtsp)
+					sesion.close()
+					error=False
+				except:
+					error=True
+			
+			if(self.vlcprocess==None or error):
+			
+				if(self.vlcprocess!=None):
+					os.kill(self.vlcprocess.pid, signal.SIGUSR1)
+					
+				self.rtsp="rtsp://"
+				
+				if(self.options["SSHEnable"]):
+					self.rtsp+=self.options["SSHServer"]+":"
+				else:
+					self.rtsp+="127.0.0.1:"
+					
+				self.rtsp+=str(self.options["RTPPort"])
+			
+				xcmd = os.popen('xwininfo -root | grep geometry')
+				line = xcmd.readlines()[0]
+				separator=line.find('+')
+				resolution=line[12:separator]
+				separator=resolution.find('x')
+				width=int(resolution[0:separator])
+				height=int(resolution[separator+1:len(resolution)])
+				
+				self.vlcprocess=subprocess.Popen(["vlc", "--height="+str(self.options["WindowHeight"]) ,"--width="+str(self.options["WindowWidth"]), "--video-y="+str(height-self.options["WindowHeight"]-self.options["WindowYOffset"]), "--video-x="+str(width-self.options["WindowWidth"]-self.options["WindowXOffset"]), "--volume=768","-Idummy", "--intf", "rc", "--rc-fake-tty", "--rc-host", "localhost:9999",self.rtsp])
+
+		
+		# This method stops the tv stream on the VLC window and closes the
+		# VLC instance if it is indicated by the optional closevlc argument.
+		# It also kills the wis-streamer instance calling the killStreamer
+		# method.
+		
+		def stopStream(widget,closevlc=False):
+		
+			stop_item.set_sensitive(False)
+			vol_item.set_sensitive(False)
+			
+			if(self.vlcprocess!=None):
+				try:
+					sesion = telnetlib.Telnet("127.0.0.1",9999)
+					if closevlc:
+						sesion.write("quit")
+					else:
+						sesion.write("stop")
+					sesion.close()
+				except:
+					os.kill(self.vlcprocess.pid, signal.SIGUSR1)
+
+			self.killStreamer()
+		
+		# This method stops the stream, closes the VLC instance
+		# and ends the WisRemote process.
+		
+		def close(widget):
+			stopStream(widget,True)
+			sys.exit(2)	     		
+		
+		# This method starts the TV Stream according to the parameters configured in the
+		# options variables and shows the stream on the VLC dummy window.
+		
+		def startStream(widget):
+			stopStream(widget)
+			stop_item.set_sensitive(True)
+			vol_item.set_sensitive(True)
+
+			self.options["Preset"]=widget
+
+			if(low_ritem.get_active()):	
+				self.options["PreferedQuality"]=1
+			
+			elif(med_ritem.get_active()):
+				self.options["PreferedQuality"]=2
+								
+			elif(high_ritem.get_active()):
+				self.options["PreferedQuality"]=3
+				
+			self.prepareCmd()
+			self.runStreamServer()
+			
+			openVLC(widget)
+
+		# This method adds the channel list configured by the user on the self.channels
+		# variable to the menu included on the argument. It first appends the Composite
+		# and SuperVideo sources and then adds the user's channels.
+		
+		def createChannelList(widget,menu):
+			
+			chlist=[]
+			sources=[]
+			
+			for i,v in self.channels.iteritems():
+				if(str(v[2])=="none"):
+					mitem=gtk.MenuItem(v[1])
+				else:
+					mitem=gtk.ImageMenuItem(v[1])
+					itemim = gtk.Image()
+					itemim.set_from_file(v[2])
+					mitem.set_image(itemim)
+									
+				mitem.connect_object("activate", startStream, i)	
+
+				if (str(v[1])=="Composite" or str(v[1])=="SuperVideo"):
+					sources.append(mitem)
+				else:
+					chlist.append(mitem)
+
+			sources.reverse()
+			for i in set(sources):
+				menu.append(sources.pop())
+				
+			sep_item = gtk.SeparatorMenuItem()
+			menu.append(sep_item)
+
+			chlist.reverse()
+			for i in set(chlist):
+				menu.append(chlist.pop())	
+		
+		
+		# This method changes the volume settings on the opened VLC instance
+		# depending on the value of the argument.
+		
+		def setVolume(widget):
+
+			sesion = telnetlib.Telnet("127.0.0.1",9999)
+			if widget==0:
+				sesion.write("volume 0")
+			elif widget==25:
+				sesion.write("volume 256")							
+			elif widget==50:
+				sesion.write("volume 512")
+			elif widget==75:
+				sesion.write("volume 768")			
+			elif widget==100:									
+				sesion.write("volume 1024")					
+					
+			sesion.close()
+
+		menu = gtk.Menu()
+		
+		chan_item = gtk.ImageMenuItem("Stream channel")
+		vol_item = gtk.ImageMenuItem("Volume")
+		vol_item.set_sensitive(False)
+		stop_item = gtk.ImageMenuItem("Stop stream")
+		stop_item.set_sensitive(False)
+		sep1_item = gtk.SeparatorMenuItem()	
+		
+		ritem_group=gtk.RadioMenuItem(None,"Quality Group")
+		
+		low_ritem = gtk.RadioMenuItem(ritem_group, "Low quality")
+		med_ritem = gtk.RadioMenuItem(ritem_group, "Medium quality")
+		high_ritem = gtk.RadioMenuItem(ritem_group, "High quality")
+		
+		
+		if(self.options["PreferedQuality"]==1):
+			low_ritem.set_active(True)
+
+		elif(self.options["PreferedQuality"]==2):
+			med_ritem.set_active(True)
+
+		elif(self.options["PreferedQuality"]==3):		
+			high_ritem.set_active(True)
+		else:
+			high_ritem.set_active(True)
+
+		sep2_item = gtk.SeparatorMenuItem()
+		tvg_item = gtk.ImageMenuItem("TV Guide")
+		quit_item = gtk.ImageMenuItem("Quit")
+		
+		chan_img = gtk.Image()		
+		chan_img.set_from_file(self.options["ProgramFolder"]+"icons/channels.png")	
+		chan_item.set_image(chan_img)
+			
+		chan_item.set_image(chan_img)
+		
+		vol_img = gtk.Image()		
+		vol_img.set_from_icon_name("audio-volume-medium", gtk.ICON_SIZE_MENU)		
+		vol_item.set_image(vol_img)
+		
+		stop_img = gtk.Image()		
+		stop_img.set_from_icon_name("gtk-stop", gtk.ICON_SIZE_MENU)		
+		stop_item.set_image(stop_img)		
+		
+		tvg_img = gtk.Image()		
+		tvg_img.set_from_icon_name("gtk-about", gtk.ICON_SIZE_MENU)		
+		tvg_item.set_image(tvg_img)
+				
+		quit_img = gtk.Image()		
+		quit_img.set_from_icon_name("gtk-quit", gtk.ICON_SIZE_MENU)		
+		quit_item.set_image(quit_img)
+		
+		chmenu = gtk.Menu()
+		createChannelList(self,chmenu)
+		gtk.MenuItem.set_submenu(chan_item, chmenu)	
+		
+		volmenu = gtk.Menu()
+		
+		vol_group=gtk.RadioMenuItem(None,"Volume Group")
+		
+		v0_item = gtk.RadioMenuItem(vol_group,"Silence")
+		v25_item = gtk.RadioMenuItem(vol_group,"25  %")
+		v50_item = gtk.RadioMenuItem(vol_group,"50  %")
+		v75_item = gtk.RadioMenuItem(vol_group,"75  %")
+		v100_item = gtk.RadioMenuItem(vol_group,"100 %")	
+		
+		v75_item.set_active(True)
+						
+		v0_item.connect_object("activate", setVolume, 0)	
+		v25_item.connect_object("activate", setVolume, 25)	
+		v50_item.connect_object("activate", setVolume, 50)		
+		v75_item.connect_object("activate", setVolume, 75)	
+		v100_item.connect_object("activate", setVolume, 100)						
+		
+		volmenu.append(v0_item)
+		volmenu.append(v25_item)		
+		volmenu.append(v50_item)
+		volmenu.append(v75_item)
+		volmenu.append(v100_item)
+		
+		gtk.MenuItem.set_submenu(vol_item, volmenu)
+
+		menu.append(chan_item)
+		menu.append(vol_item)	
+		menu.append(stop_item)	
+		menu.append(sep1_item)
+		menu.append(high_ritem)
+		menu.append(med_ritem)
+		menu.append(low_ritem)
+		menu.append(sep2_item)
+		menu.append(tvg_item)
+		menu.append(quit_item)
+
+		stop_item.connect_object("activate", stopStream, "file.open")
+		tvg_item.connect_object("activate", openTVGuide, "file.open")		
+		quit_item.connect_object ("activate", close, "file.quit")
+		
+		menu.show_all()
+
+		pixbuf = gtk.gdk.pixbuf_new_from_file(self.options["ProgramFolder"]+"icons/logo.png")
+		tray = gtk.StatusIcon()
+		tray.set_from_pixbuf(pixbuf)
+		tray.connect("popup-menu", tray_menu, menu)
+		tray.set_tooltip("WisRemote 1.0")
+
+		gtk.main()
+		
+# Used to point the main method of the application:
+
+if __name__ == '__main__':
+	WisRemote().main()

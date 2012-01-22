@@ -1,0 +1,10 @@
+#!/bin/bash
+
+rm /usr/share/applications/wisremote.desktop
+rm /usr/local/bin/wisremote
+rm -Rf /opt/wisremote
+
+echo
+echo 'WisRemote has been uninstalled from your system.'
+echo
+

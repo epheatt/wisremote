@@ -1,0 +1,84 @@
+INSTALL Index:
+
+      1.First Steps
+      2.Configuring your channel list
+      3.Install
+      4.Running the script      
+      5.Uninstall
+      
+      
+      
+1. FIRST STEPS:
+
+An installation bash script is included with the program, but fist
+you will have to configure some personal configuration parameters.
+
+In order to do so, open the wisremote file and take a look to
+lines 39-49 and change the values of each option to fit your
+needs.
+
+
+
+2. CONFIGURING YOUR CHANNEL LIST:
+
+Now you will have to change the channel list that starts at line
+98 on the wisremote file following the instructions given on the
+comments starting at line 77.
+
+In order to simplify the channel scanning process, a python script
+named "chanscanner" has been included within the package.
+
+You will need to have the gorecord application (included with the
+go7007 driver) in your system's path.
+
+To run the script type "./chanscanner" to see it's usage and then
+run it according your band name's number.
+
+The execution of the script might take a while, and after it's done
+you'll have several 2 second long video files inside a directory
+named 'captures'.
+
+Check every single file and note the name of the files that contain
+real TV images. Then use that info to change the channels variable
+on the wisremote source.
+
+For instance, if I notice that the TV channel that has been recored
+at the ch25.avi file after the scan is "TVE 1", I would write down
+this line on the channels variable at the wisremote file:
+
+1:['25','TVE 1','None'],
+
+That would be in the case I don't have an icon for the channel. If
+I do have one (a png with a size of 16x16 pixels), copy the icon
+file (la1.png on the example) inside the icons directory and add:
+
+1:['25','TVE 1',self.options["ProgramFolder"]+'icons/la1.png'],
+
+
+
+3. INSTALL
+
+Run the following command in order to intall the script on your 
+system.
+
+sudo ./install-wisremote
+
+
+
+4. RUNNING THE SCRIPT
+
+After running the installation script, type wisremote from command
+line to see the available options.
+
+You will also have a link to the tray mode available from gnome's
+menu.
+
+
+
+5. UNINSTALL
+
+Run the following command in order to unintall the script from your 
+system.
+
+sudo ./uninstall-wisremote
+

@@ -1,0 +1,14 @@
+
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+Terminal=false
+Icon[es_ES]=/opt/wisremote/icons/logo.svg
+Name[es_ES]=WisRemote
+Exec=wisremote -t
+Comment[es_ES]=Ver TV en directo
+Name=WisRemote
+Comment=Watch Live TV
+Icon=/opt/wisremote/icons/logo.svg
+Categories=Application;AudioVideo;Player;

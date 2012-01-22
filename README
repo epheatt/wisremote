@@ -1,0 +1,74 @@
+README Index:
+
+      1.License
+      2.About
+      3.Dependencies
+      4.Installation
+      5.Running the script
+      6.Uninstall
+
+
+1. LICENSE:
+
+WisRemote v1.0 
+
+Copyright (C) 2007  Unai Goikoetxeta <unai.goikoetxeta@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+2. ABOUT:
+
+WisRemote is a python script for controlling wis-streamer from command
+line locally or remotely (using SSH).
+
+It includes an option to show a tray icon on gnome-panel to control
+the TV stream and to visualize it using a dummy VLC window.
+
+It has been developed for Ubuntu Gutsy 7.10, although it should work
+on any other GNU/Linux distribution with not much trouble.
+
+
+
+3. DEPENDENCIES:
+
+Needed packages:
+
+-python
+-wis-streamer
+
+Optional packages:
+
+-python-gtk2 (for the gnome-panel tray)
+-python-paramiko (for controlling wis-streamer remotely using ssh)
+-vlc (for watching the TV stream)
+
+
+
+4. INSTALLATION:
+
+Read INSTALL for installation instructions.
+
+
+
+5. RUNNING THE SCRIPT
+
+Read INSTALL for learning about how to execute the script.
+
+
+
+4. UNINSTALL:
+
+Read INSTALL for uninstallation instructions.
