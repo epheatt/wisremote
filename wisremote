@@ -53,7 +53,7 @@ class WisRemote:
 		# DO NOT CHANGE THE FOLLOWING VALUES:
 					'ProgramFolder':'/opt/wisremote/',	# Full path to where WisRemote is installed (ending with a slash)		
 					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3).							
-					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3, Full 4).							
+					'PreferedQuality':0,			# The prefered quality of the stream (None 0, Low 1, Medium 2, High 3, DVD 4).							
 					'WindowHeight':240,       		# Height of the VLC window.
 					'WindowWidth':320,	   		# Width of the VLC window.
 					'WindowXOffset':0,			# Horizontal offset of the VLC window from the right.
@@ -126,7 +126,7 @@ class WisRemote:
 					'ABRate':128, 				# Audio bitrate of the stream.
 					'TSContainer':False}        # Transport Stream Format
 								
-		self.highquality = { 	'Height':480,				# Height of the stream.
+		self.highquality = { 	'Height':480,	# Height of the stream.
 					'Width':640,				# Weight of the stream.
 					'VCodec':'mpeg4',			# Video codec of the stream.
 					'VBRate':1500,				# Video bitrate of the stream.
@@ -475,13 +475,13 @@ class WisRemote:
 		else:
 			self.command+="-na "
 	
-        if(self.options["TSContainer"]==True):
+		if(self.options["TSContainer"]==True):
 			self.command+="-mpegtransport "+str(self.options["ABRate"])+" "
-            sdmessage= "Streaming "
-            if(self.options["Preset"]==-1):
-                    sdmessage+="channel "+self.options["TVChan"]+" "
-            else:
-                    sdmessage+=self.channels[self.options["Preset"]][1]
+			sdmessage= "Streaming "
+			if(self.options["Preset"]==-1):
+				sdmessage+="channel "+self.options["TVChan"]+" "
+			else:
+				sdmessage+=self.channels[self.options["Preset"]][1]
 			self.command+=" -D \""+str(sdmessage)+"\" "
 
 	# This method loads the ssh values needed to establish an SSH connection if SSH is enabled. 
